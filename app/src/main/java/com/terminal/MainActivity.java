@@ -21,6 +21,7 @@ import java.io.FileOutputStream;
 import java.io.FileInputStream;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipEntry;
+import java.util.ArrayList;
 
 public class MainActivity extends Activity { 
     public EditText entrada;
@@ -34,16 +35,20 @@ public class MainActivity extends Activity {
         super.onCreate(s);
         setContentView(R.layout.terminal);
 		Logs.capturar();
+        bins = new ArrayList<>();
         dirPs = new File(getFilesDir().getAbsolutePath()+"/PS");
         if(!dirPs.isDirectory()) dirPs.mkdirs();
+        bins.add(dirPs.getAbsolutePath()+"/g++/include");
+        bins.add(dirPs.getAbsolutePath()+"/g++/bin");
+        bins.add(dirPs.getAbsolutePath()+"/g++/libs");
         dirTrabalho = new File(getFilesDir().getAbsolutePath()+"/CASA");
         if(!dirTrabalho.isDirectory()) dirTrabalho.mkdirs();
         
         if(!(new File(dirPs.getAbsolutePath()+"/g++").exists())) instalarPacote("/storage/emulated/0/g++.zip", "g++");
-
+        
         entrada = findViewById(R.id.entrada);
         saida = findViewById(R.id.saida);
-
+        
         entrada.addTextChangedListener(new TextWatcher() {
 				public void beforeTextChanged(CharSequence s, int i, int c, int d) {}
 				public void onTextChanged(CharSequence s, int i, int a, int c) {}
@@ -127,15 +132,23 @@ public class MainActivity extends Activity {
     public void executarProcesso(String comando) {
         try {
             ProcessBuilder pb = new ProcessBuilder();
-			Map<String, String> cams = pb.environment();
-			String camAtual = cams.get("PATH");
-			if(bins != null) {
-				for(String bin : bins) {
-					if(bin == null) break;
-					else camAtual = bin + ":" + camAtual;
-				}
-			}
-			cams.put("PATH", camAtual);
+            Map<String, String> cams = pb.environment();
+
+            String camAtual = cams.get("PATH");
+            if(bins != null) {
+                for(String bin : bins) {
+                    if(bin == null) break;
+                    else camAtual = bin + ":" + camAtual;
+                }
+            }
+            cams.put("PATH", camAtual);
+
+            // >>> AQUI adiciona LD_LIBRARY_PATH <<<
+            String libsPath = dirPs.getAbsolutePath() + "/g++/libs";
+            String ldAtual = cams.get("LD_LIBRARY_PATH");
+            if(ldAtual == null) ldAtual = "";
+            cams.put("LD_LIBRARY_PATH", libsPath + ":" + ldAtual);
+
             pb.command("/system/bin/sh", "-c", comando);
             pb.directory(dirTrabalho);
             pb.redirectErrorStream(true);
@@ -151,111 +164,16 @@ public class MainActivity extends Activity {
             final int codigoSaida = p.waitFor();
 
             runOnUiThread(new Runnable() {
-					public void run() {
-						System.out.println(s);
-						System.out.println("saida: " + codigoSaida + "\n");
-						saida.setText(Logs.exibir());
-						rolarProFim();
-					}
-				});
+                    public void run() {
+                        System.out.println(s);
+                        System.out.println("saida: " + codigoSaida + "\n");
+                        saida.setText(Logs.exibir());
+                        rolarProFim();
+                    }
+                });
         } catch(final Exception e) {
             erro(e.getMessage());
         }
-    }
-    
-    public void executarBin(final String caminho) {
-        new Thread(new Runnable() {
-                public void run() {
-                    try {
-                        if(caminho == null || caminho.trim().isEmpty()) {
-                            erro("executarBin: caminho vazio");
-                            return;
-                        }
-                        String[] partes = caminho.trim().split(" ");
-                        String arqCam = partes[0];
-                        File fonte = new File(arqCam);
-                        if(!fonte.exists() || !fonte.canRead()) {
-                            File alt = new File(dirTrabalho, arqCam);
-                            if (alt.exists() && alt.canRead()) fonte = alt;
-                        }
-                        if(!fonte.exists() || !fonte.canRead()) {
-                            erro("executarBin: arquivo não encontrado ou sem permissão: " + arqCam);
-                            return;
-                        }
-                        File binsDir = new File(getFilesDir(), "bins");
-                        if(!binsDir.exists() && !binsDir.mkdirs()) {
-                            erro("executarBin: falha ao criar diretório bins");
-                            return;
-                        }
-                        File dst = new File(binsDir, fonte.getName());
-                        FileInputStream fis = null;
-                        FileOutputStream fos = null;
-                        try {
-                            fis = new FileInputStream(fonte);
-                            fos = new FileOutputStream(dst);
-                            byte[] buffer = new byte[8192];
-                            int r;
-                            while((r = fis.read(buffer)) > 0) fos.write(buffer, 0, r);
-                            fos.getFD().sync();
-                        } finally {
-                            try {
-                                if(fis != null) fis.close();
-                            } catch(Exception e) {}
-                            try {
-                                if(fos != null) fos.close();
-                            } catch(Exception e) {}
-                        }
-                        if(!dst.setExecutable(true, false)) {
-                            Process chmod = Runtime.getRuntime().exec(new String[]{ "chmod", "+x", dst.getAbsolutePath() });
-                            chmod.waitFor();
-                            if(!dst.canExecute()) {
-                                erro("executarBin: não foi possível definir permissão de execução");
-                                return;
-                            }
-                        }
-                        String[] cmd;
-                        if(partes.length > 1) {
-                            cmd = new String[partes.length];
-                            cmd[0] = dst.getAbsolutePath();
-                            for(int i = 1; i < partes.length; i++) cmd[i] = partes[i];
-                        } else cmd = new String[]{ dst.getAbsolutePath() };
-
-                        ProcessBuilder pb = new ProcessBuilder(cmd);
-                        Map<String, String> env = pb.environment();
-                        String camAtual = env.get("PATH");
-                        if(camAtual == null) camAtual = "";
-                        if(bins != null) {
-                            for(String bin : bins) {
-                                if(bin == null) break;
-                                camAtual = bin + ":" + camAtual;
-                            }
-                            env.put("PATH", camAtual);
-                        }
-
-                        pb.directory(dirTrabalho);
-                        pb.redirectErrorStream(true);
-                        final Process p = pb.start();
-
-                        BufferedReader leitor = new BufferedReader(new InputStreamReader(p.getInputStream()));
-                        String linha;
-                        while((linha = leitor.readLine()) != null) {
-                            System.out.println(linha);
-                        }
-                        final int codigoSaida = p.waitFor();
-
-                        runOnUiThread(new Runnable() {
-                                public void run() {
-                                    System.out.println("saida: " + codigoSaida + "\n");
-                                    saida.setText(Logs.exibir());
-                                    rolarProFim();
-                                }
-                            });
-                    } catch(Exception e) {
-                        erro(e.getMessage());
-                    }
-                }
-            }).start();
-        rolarProFim();
     }
 
     public void erro(final String msg) {
@@ -274,16 +192,16 @@ public class MainActivity extends Activity {
                 public void run() {
                     try {
                         ZipInputStream zis = new ZipInputStream(new FileInputStream(zipArq));
-                        ZipEntry entry;
+                        ZipEntry entradas;
                         File destDir = new File(dirPs.getAbsolutePath()+"/"+dir);
                         if(!destDir.exists() && !destDir.mkdirs()) {
                             erro("Falha ao criar diretório PS");
                             return;
                         }
                         byte[] buffer = new byte[8192];
-                        while((entry = zis.getNextEntry()) != null) {
-                            if(entry.isDirectory()) continue;
-                            File saidaArq = new File(destDir, entry.getName());
+                        while((entradas = zis.getNextEntry()) != null) {
+                            if(entradas.isDirectory()) continue;
+                            File saidaArq = new File(destDir, entradas.getName());
                             File parent = saidaArq.getParentFile();
                             if(!parent.exists() && !parent.mkdirs()) {
                                 erro("Falha ao criar diretório " + parent.getAbsolutePath());
