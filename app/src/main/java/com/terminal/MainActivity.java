@@ -38,11 +38,12 @@ public class MainActivity extends Activity {
         bins = new ArrayList<>();
         dirPs = new File(getFilesDir().getAbsolutePath()+"/PS");
         if(!dirPs.isDirectory()) dirPs.mkdirs();
-        bins.add(dirPs.getAbsolutePath()+"/g++/include");
+        bins.add(dirPs.getAbsolutePath()+"/include");
         bins.add(dirPs.getAbsolutePath()+"/g++/bin");
         bins.add(dirPs.getAbsolutePath()+"/g++/libs");
         dirTrabalho = new File(getFilesDir().getAbsolutePath()+"/CASA");
         if(!dirTrabalho.isDirectory()) dirTrabalho.mkdirs();
+        if(!(new File(dirPs.getAbsolutePath()+"/etc").isDirectory())) new File(dirPs.getAbsolutePath()+"/etc").mkdirs();
         
         if(!(new File(dirPs.getAbsolutePath()+"/g++").exists())) instalarPacote("/storage/emulated/0/g++.zip", "g++");
         
@@ -54,13 +55,15 @@ public class MainActivity extends Activity {
 				public void onTextChanged(CharSequence s, int i, int a, int c) {}
 				public void afterTextChanged(Editable s) {
 					if(s.toString().contains("\n")) {
-						String comando = s.toString().trim();
+						String[] comandos = entrada.getText().toString().trim().split("\n");
 						s.clear();
-						if(comando.length() == 0) return;
-                        System.out.println("> " + comando);
-						saida.setText(Logs.exibir());
-						executar(comando);
-						rolarProFim();
+                        for(int i = comandos.length-1; i >= 0; i--) {
+                            if(comandos[i].length() == 0) return;
+                            System.out.println("> " + comandos[i]);
+                            saida.setText(Logs.exibir());
+                            executar(comandos[i]);
+                            rolarProFim();
+                        }
 					}
 				}
 		});
@@ -143,11 +146,14 @@ public class MainActivity extends Activity {
             }
             cams.put("PATH", camAtual);
 
-            // >>> AQUI adiciona LD_LIBRARY_PATH <<<
             String libsPath = dirPs.getAbsolutePath() + "/g++/libs";
             String ldAtual = cams.get("LD_LIBRARY_PATH");
             if(ldAtual == null) ldAtual = "";
             cams.put("LD_LIBRARY_PATH", libsPath + ":" + ldAtual);
+            String etcPath = dirPs.getAbsolutePath() + "/etc";
+            String etcAtual = cams.get("LD_LIBRARY_PATH");
+            if(etcAtual == null) etcAtual = "";
+            cams.put("OPENSSL_CONF", etcPath + ":" +etcAtual);
 
             pb.command("/system/bin/sh", "-c", comando);
             pb.directory(dirTrabalho);
