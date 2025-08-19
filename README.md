@@ -1,6 +1,11 @@
 ## um terminal simples que usa comandos padrão do shell Android
 ## para instalar pacotes de binários.
-você pode utilizar um .zip com o nome de "pacotes.zip" em /storage/emulated/0/
+você pode utilizar um .zip com o nome de "pacotes.zip" e utilize o comando:
+
+instalar /caminho/absoluto/do/pacote.zip
+
+e espere até a mensagem de sucesso aparecer.
+
 ou você pode simplesmente levar as pastas com as dependências necessárias para o app, na pasta utilizando o comando.
 
 cp /caminho/do/binario.bin /data/data/com.terminal/files/pacotes/bin/

@@ -45,8 +45,6 @@ public class MainActivity extends Activity {
         if(!dirTrabalho.isDirectory()) dirTrabalho.mkdirs();
         if(!(new File(dirPs.getAbsolutePath()+"/etc").isDirectory())) new File(dirPs.getAbsolutePath()+"/etc").mkdirs();
         
-        instalarPacote("/storage/emulated/0/pacotes.zip", "");
-        executar("find /data/data/com.terminal/files/pacotes/ -type f -exec chmod +x {} \\;");
         entrada = findViewById(R.id.entrada);
         saida = findViewById(R.id.saida);
         
@@ -97,6 +95,9 @@ public class MainActivity extends Activity {
 						return;
 					} else if(comandoStr.startsWith("limp")) {
                         saida.setText("");
+                        return;
+                    } else if(comandoStr.startsWith("instalar ")) {
+                        instalarPacote(comandoStr.substring(9).trim());
                         return;
                     }
 					executarProcesso(comandoStr);
@@ -195,7 +196,7 @@ public class MainActivity extends Activity {
 		});
     }
     
-    public void instalarPacote(String cam, final String dir) {
+    public void instalarPacote(String cam) {
         final File zipArq = new File(cam);
         if(!zipArq.exists()) return;
         new Thread(new Runnable() {
@@ -203,7 +204,7 @@ public class MainActivity extends Activity {
                     try {
                         ZipInputStream zis = new ZipInputStream(new FileInputStream(zipArq));
                         ZipEntry entradas;
-                        File destDir = new File(dirPs.getAbsolutePath()+"/"+dir);
+                        File destDir = new File(dirPs.getAbsolutePath());
                         if(!destDir.exists() && !destDir.mkdirs()) {
                             erro("Falha ao criar diretório PS");
                             return;
@@ -232,6 +233,8 @@ public class MainActivity extends Activity {
                             zis.closeEntry();
                         }
                         zis.close();
+                        executar("find /data/data/com.terminal/files/pacotes/ -type f -exec chmod +x {} \\;");
+                        System.out.println("[PACOTE INSTALADO]");
                     } catch(Exception e) {
                         erro("Erro ao instalar binários: " + e.getMessage());
                     }
