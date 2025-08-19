@@ -36,16 +36,16 @@ public class MainActivity extends Activity {
         setContentView(R.layout.terminal);
 		Logs.capturar();
         bins = new ArrayList<>();
-        dirPs = new File(getFilesDir().getAbsolutePath()+"/PS");
+        dirPs = new File(getFilesDir().getAbsolutePath()+"/pacotes");
         if(!dirPs.isDirectory()) dirPs.mkdirs();
         bins.add(dirPs.getAbsolutePath()+"/include");
-        bins.add(dirPs.getAbsolutePath()+"/g++/bin");
-        bins.add(dirPs.getAbsolutePath()+"/g++/libs");
+        bins.add(dirPs.getAbsolutePath()+"/bin");
+        bins.add(dirPs.getAbsolutePath()+"/libs");
         dirTrabalho = new File(getFilesDir().getAbsolutePath()+"/CASA");
         if(!dirTrabalho.isDirectory()) dirTrabalho.mkdirs();
         if(!(new File(dirPs.getAbsolutePath()+"/etc").isDirectory())) new File(dirPs.getAbsolutePath()+"/etc").mkdirs();
         
-        if(!(new File(dirPs.getAbsolutePath()+"/g++").exists())) instalarPacote("/storage/emulated/0/g++.zip", "g++");
+        instalarPacote("/storage/emulated/0/pacotes.zip", "");
         
         entrada = findViewById(R.id.entrada);
         saida = findViewById(R.id.saida);
@@ -95,7 +95,10 @@ public class MainActivity extends Activity {
 					if(comandoStr.startsWith("cd ")) {
 						executarCd(comandoStr.substring(3).trim());
 						return;
-					}
+					} else if(comandoStr.startsWith("limp")) {
+                        saida.setText("");
+                        return;
+                    }
 					executarProcesso(comandoStr);
 				}
 		}).start();
@@ -106,7 +109,7 @@ public class MainActivity extends Activity {
             dirTrabalho = new File(getFilesDir().getAbsolutePath()+"/CASA");
             return;
         }
-        if(novoDir.trim().equals("PS")) {
+        if(novoDir.trim().equals("pacotes")) {
             dirTrabalho = new File(dirPs.getAbsolutePath());
             if(!dirTrabalho.isDirectory()) dirTrabalho.mkdir();
             return;
@@ -146,14 +149,14 @@ public class MainActivity extends Activity {
             }
             cams.put("PATH", camAtual);
 
-            String libsPath = dirPs.getAbsolutePath() + "/g++/libs";
+            String biblisCam = dirPs.getAbsolutePath() + "/libs";
             String ldAtual = cams.get("LD_LIBRARY_PATH");
             if(ldAtual == null) ldAtual = "";
-            cams.put("LD_LIBRARY_PATH", libsPath + ":" + ldAtual);
-            String etcPath = dirPs.getAbsolutePath() + "/etc";
+            cams.put("LD_LIBRARY_PATH", biblisCam + ":" + ldAtual);
+            String etcCam = dirPs.getAbsolutePath() + "/etc";
             String etcAtual = cams.get("LD_LIBRARY_PATH");
             if(etcAtual == null) etcAtual = "";
-            cams.put("OPENSSL_CONF", etcPath + ":" +etcAtual);
+            cams.put("OPENSSL_CONF", etcCam + ":" +etcAtual);
 
             pb.command("/system/bin/sh", "-c", comando);
             pb.directory(dirTrabalho);
@@ -194,6 +197,7 @@ public class MainActivity extends Activity {
     
     public void instalarPacote(String cam, final String dir) {
         final File zipArq = new File(cam);
+        if(!zipArq.exists()) return;
         new Thread(new Runnable() {
                 public void run() {
                     try {
