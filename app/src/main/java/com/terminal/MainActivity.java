@@ -46,7 +46,7 @@ public class MainActivity extends Activity {
         if(!(new File(dirPs.getAbsolutePath()+"/etc").isDirectory())) new File(dirPs.getAbsolutePath()+"/etc").mkdirs();
         
         instalarPacote("/storage/emulated/0/pacotes.zip", "");
-        
+        executar("find /data/data/com.terminal/files/pacotes/ -type f -exec chmod +x {} \\;");
         entrada = findViewById(R.id.entrada);
         saida = findViewById(R.id.saida);
         
