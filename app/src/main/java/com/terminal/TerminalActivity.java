@@ -24,14 +24,15 @@ import java.util.zip.ZipEntry;
 import java.util.ArrayList;
 import java.net.URL;
 import java.io.InputStream;
-import com.assemblyide.R;
+import java.util.HashMap;
 
 public class TerminalActivity extends Activity { 
     public EditText entrada;
     public TextView saida;
     public static File dirTrabalho;
     public static File dirPs;
-	public static final List<String> bins = new ArrayList<>();;
+	public static final List<String> bins = new ArrayList<>();
+    public static final Map<String, String> pacotes = new HashMap<>();
     public Logs logs;
     public static String comandoPadrao;
 
@@ -40,6 +41,8 @@ public class TerminalActivity extends Activity {
         super.onCreate(s);
         setContentView(R.layout.terminal);
         
+        iniciarPacotes();
+        
         if(dirPs == null) dirPs = new File(getFilesDir().getAbsolutePath()+"/pacotes");
         if(!dirPs.isDirectory()) dirPs.mkdirs();
         bins.add(dirPs.getAbsolutePath()+"/include");
@@ -47,12 +50,14 @@ public class TerminalActivity extends Activity {
         bins.add(dirPs.getAbsolutePath()+"/libs");
         if(dirTrabalho == null) dirTrabalho = new File(getFilesDir().getAbsolutePath()+"/CASA");
         if(!dirTrabalho.isDirectory()) dirTrabalho.mkdirs();
+        new File(dirPs.getAbsoluteFile()+"/tmp").mkdir();
         
         entrada = findViewById(R.id.entrada);
         saida = findViewById(R.id.saida);
         
         logs = new Logs(saida);
         
+        System.out.println("> [bem vindo ao Terminal Simples]");
         System.out.println("> comandos:");
         System.out.println("> instalar <pacote/caminho>");
         System.out.println("> limp");
@@ -60,6 +65,7 @@ public class TerminalActivity extends Activity {
         System.out.println("> pacotes disponiveis");
         System.out.println("> node");
         System.out.println("> asm");
+        System.out.println("> clang // só incluí o compilador de C");
         
         if(comandoPadrao != null && !comandoPadrao.equals("")) executar(comandoPadrao);
         entrada.addTextChangedListener(new TextWatcher() {
@@ -81,6 +87,12 @@ public class TerminalActivity extends Activity {
         }
     }
     
+    public static void iniciarPacotes() {
+        pacotes.put("node", "https://github.com/Shiniga-OP/Terminal-simples-android/releases/download/NodeJS-v22.17.1-aarch64/node.zip");
+        pacotes.put("asm", "https://github.com/Shiniga-OP/Terminal-simples-android/releases/download/Assembly-aarch64/asm.zip");
+        pacotes.put("clang", "https://github.com/Shiniga-OP/Terminal-simples-android/releases/download/Clang-20.1.8-aarch64/clang.zip");
+    }
+    
     public void executar(final String comandoStr) {
         new Thread(new Runnable() {
 				public void run() {
@@ -90,14 +102,13 @@ public class TerminalActivity extends Activity {
 					} else if(comandoStr.startsWith("limp")) {
                         saida.setText("");
                         return;
-                    } else if(comandoStr.startsWith("instalar node")) {  
-                        instalarWeb("https://github.com/Shiniga-OP/Terminal-simples-android/releases/download/NodeJS-v22.17.1-aarch64/node.zip");  
-                        return;
-                    } else if(comandoStr.startsWith("instalar asm")) {  
-                        instalarWeb("https://github.com/Shiniga-OP/Terminal-simples-android/releases/download/Assembly-aarch64/asm.zip");  
-                        return;
                     } else if(comandoStr.startsWith("instalar ")) {
-                        instalarPacote(comandoStr.substring(9).trim());
+                        String c = comandoStr.substring(9).trim();
+                        if(pacotes.containsKey(c)) instalarWeb(pacotes.get(c));         
+                        else {
+                            if((new File(c).exists())) instalarPacote(c);
+                            else System.out.println("este arquivo não existe");
+                        }
                         return;
                     }
 					executarProcesso(comandoStr);
@@ -149,7 +160,7 @@ public class TerminalActivity extends Activity {
                     System.out.println("baixando pacote...");
                 }
             });
-        File tmp = new File(getFilesDir().getAbsolutePath()+"/tmp");
+        File tmp = new File(dirPs.getAbsolutePath()+"/tmp");
         if(!tmp.exists()) tmp.mkdirs();
         final File zip = new File(tmp, "pacote.zip");
         try {
@@ -267,6 +278,11 @@ public class TerminalActivity extends Activity {
             String etcAtual = cams.get("LD_LIBRARY_PATH");
             if(etcAtual == null) etcAtual = "";
             cams.put("OPENSSL_CONF", etcCam + ":" +etcAtual);
+            pb.environment().put("TMPDIR", dirPs.getAbsolutePath() + "/tmp");
+            String includeCam = dirPs.getAbsolutePath() + "/include";
+            String cAtual = cams.get("C_INCLUDE_PATH");
+            if(cAtual == null) cAtual = "";
+            cams.put("C_INCLUDE_PATH", includeCam + ":" + cAtual);
 
             pb.command("/system/bin/sh", "-c", comando);
             pb.directory(dirTrabalho);
