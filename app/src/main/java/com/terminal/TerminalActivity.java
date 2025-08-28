@@ -119,21 +119,20 @@ public class TerminalActivity extends Activity {
     public static void executarEs(final String comandoStr, final Activity a) {
         new Thread(new Runnable() {
                 public void run() {
-                    if(comandoStr.startsWith("cd ")) {
-                        executarCdEs(comandoStr.substring(3).trim(), a);
-                        return;
-                    } else if(comandoStr.startsWith("instalar node")) {  
-                        instalarWebEs("https://github.com/Shiniga-OP/Terminal-simples-android/releases/download/NodeJS-v22.17.1-aarch64/node.zip", a);  
-                        return;
-                    } else if(comandoStr.startsWith("instalar asm")) {  
-                        instalarWebEs("https://github.com/Shiniga-OP/Terminal-simples-android/releases/download/Assembly-aarch64/asm.zip", a);  
-                        return;
-                    } else if(comandoStr.startsWith("instalar ")) {
-                        instalarPacoteEs(comandoStr.substring(9).trim(), a);
+					if(comandoStr.startsWith("cd ")) {
+						executarCdEs(comandoStr.substring(3).trim(), a);
+						return;
+					} else if(comandoStr.startsWith("instalar ")) {
+                        String c = comandoStr.substring(9).trim();
+                        if(pacotes.containsKey(c)) instalarWebEs(pacotes.get(c), a);         
+                        else {
+                            if((new File(c).exists())) instalarPacoteEs(c, a);
+                            else System.out.println("este arquivo não existe");
+                        }
                         return;
                     }
-                    executarProcessoEs(comandoStr);
-                }
+					executarProcessoEs(comandoStr);
+				}
             }).start();
     }
     
@@ -221,93 +220,140 @@ public class TerminalActivity extends Activity {
     }
     
     public static void executarProcessoEs(String comando) {
-        try {
-            ProcessBuilder pb = new ProcessBuilder();
-            Map<String, String> cams = pb.environment();
+		try {
+			ProcessBuilder pb = new ProcessBuilder();
+			Map<String, String> cams = pb.environment();
 
-            String camAtual = cams.get("PATH");
-            if(bins != null && bins.size()<=0) {
-                for(String bin : bins) {
-                    if(bin == null) break;
-                    else camAtual = bin + ":" + camAtual;
-                }
-            }
-            cams.put("PATH", camAtual);
+			String camAtual = cams.get("PATH");
+			if(camAtual == null) camAtual = "";
+			if(bins != null) {
+				for(String bin : bins) {
+					if(bin == null) break;
+					camAtual = bin + ":" + camAtual;
+				}
+			}
+			cams.put("PATH", camAtual);
 
-            String biblisCam = dirPs.getAbsolutePath() + "/libs";
-            String ldAtual = cams.get("LD_LIBRARY_PATH");
-            if(ldAtual == null) ldAtual = "";
-            cams.put("LD_LIBRARY_PATH", biblisCam + ":" + ldAtual);
-            String etcCam = dirPs.getAbsolutePath() + "/etc";
-            String etcAtual = cams.get("LD_LIBRARY_PATH");
-            if(etcAtual == null) etcAtual = "";
-            cams.put("OPENSSL_CONF", etcCam + ":" +etcAtual);
+			String sysrootBiblis = dirPs.getAbsolutePath() + "/libs";
 
-            pb.command("/system/bin/sh", "-c", comando);
-            pb.directory(dirTrabalho);
-            pb.redirectErrorStream(true);
+			String localInclude = dirPs.getAbsolutePath() + "/include";
+			String clangInclude = sysrootBiblis + "/usr/clang/20/include";
+			String usrInclude = sysrootBiblis + "/usr/include";
+			String cAtual = cams.get("C_INCLUDE_PATH");
+			if(cAtual == null) cAtual = "";
+			cams.put("C_INCLUDE_PATH", localInclude + ":" + clangInclude + ":" + usrInclude + ":" + cAtual);
 
-            final Process p = pb.start();
-            BufferedReader leitor = new BufferedReader(new InputStreamReader(p.getInputStream()));
+			String cpathAtual = cams.get("CPATH");
+			if(cpathAtual == null) cpathAtual = "";
+			cams.put("CPATH", localInclude + ":" + clangInclude + ":" + usrInclude + ":" + cpathAtual);
 
-            StringBuilder resultado = new StringBuilder();
-            String linha;
-            while((linha = leitor.readLine()) != null) resultado.append(linha).append("\n");
-        } catch(final Exception e) {}
-    }
+			String cppAtual = cams.get("CPLUS_INCLUDE_PATH");
+			if(cppAtual == null) cppAtual = "";
+			cams.put("CPLUS_INCLUDE_PATH", localInclude + ":" + clangInclude + ":" + usrInclude + ":" + cppAtual);
+
+			String bibliDir = sysrootBiblis + "/usr/lib";
+			String bibliAtual = cams.get("LIBRARY_PATH");
+			if(bibliAtual == null) bibliAtual = "";
+			cams.put("LIBRARY_PATH", bibliDir + ":" + sysrootBiblis + ":" + bibliAtual);
+
+			String ldAtual = cams.get("LD_LIBRARY_PATH");
+			if(ldAtual == null) ldAtual = "";
+			cams.put("LD_LIBRARY_PATH", bibliDir + ":" + sysrootBiblis + ":" + ldAtual);
+
+			cams.put("TMPDIR", dirPs.getAbsolutePath() + "/tmp");
+			String openssl = cams.get("OPENSSL_CONF");
+			if(openssl == null) openssl = "";
+			cams.put("OPENSSL_CONF", dirPs.getAbsolutePath() + "/etc" + ":" + openssl);
+
+			cams.put("SYSROOT", sysrootBiblis);
+			cams.put("PACOTES_DIR", dirPs.getAbsolutePath());
+
+			pb.command("/system/bin/sh", "-c", comando);
+			pb.directory(dirTrabalho);
+			pb.redirectErrorStream(true);
+
+			final Process p = pb.start();
+			BufferedReader leitor = new BufferedReader(new InputStreamReader(p.getInputStream()));
+
+			StringBuilder resultado = new StringBuilder();
+			String linha;
+			while((linha = leitor.readLine()) != null) resultado.append(linha).append("\n");
+		} catch(final Exception e) {}
+	}
     
     public void executarProcesso(String comando) {
-        try {
-            ProcessBuilder pb = new ProcessBuilder();
-            Map<String, String> cams = pb.environment();
+		try {
+			ProcessBuilder pb = new ProcessBuilder();
+			Map<String, String> cams = pb.environment();
 
-            String camAtual = cams.get("PATH");
-            if(bins != null) {
-                for(String bin : bins) {
-                    if(bin == null) break;
-                    else camAtual = bin + ":" + camAtual;
-                }
-            }
-            cams.put("PATH", camAtual);
+			String camAtual = cams.get("PATH");
+			if(camAtual == null) camAtual = "";
+			if(bins != null) {
+				for(String bin : bins) {
+					if(bin == null) break;
+					camAtual = bin + ":" + camAtual;
+				}
+			}
+			cams.put("PATH", camAtual);
 
-            String biblisCam = dirPs.getAbsolutePath() + "/libs";
-            String ldAtual = cams.get("LD_LIBRARY_PATH");
-            if(ldAtual == null) ldAtual = "";
-            cams.put("LD_LIBRARY_PATH", biblisCam + ":" + ldAtual);
-            String etcCam = dirPs.getAbsolutePath() + "/etc";
-            String etcAtual = cams.get("LD_LIBRARY_PATH");
-            if(etcAtual == null) etcAtual = "";
-            cams.put("OPENSSL_CONF", etcCam + ":" +etcAtual);
-            pb.environment().put("TMPDIR", dirPs.getAbsolutePath() + "/tmp");
-            String includeCam = dirPs.getAbsolutePath() + "/include";
-            String cAtual = cams.get("C_INCLUDE_PATH");
-            if(cAtual == null) cAtual = "";
-            cams.put("C_INCLUDE_PATH", includeCam + ":" + cAtual);
+			String sysrootBiblis = dirPs.getAbsolutePath() + "/libs";
 
-            pb.command("/system/bin/sh", "-c", comando);
-            pb.directory(dirTrabalho);
-            pb.redirectErrorStream(true);
+			String localInclude = dirPs.getAbsolutePath() + "/include";
+			String clangInclude = sysrootBiblis + "/usr/clang/20/include";
+			String usrInclude = sysrootBiblis + "/usr/include";
+			String cAtual = cams.get("C_INCLUDE_PATH");
+			if(cAtual == null) cAtual = "";
+			cams.put("C_INCLUDE_PATH", localInclude + ":" + clangInclude + ":" + usrInclude + ":" + cAtual);
 
-            final Process p = pb.start();
-            BufferedReader leitor = new BufferedReader(new InputStreamReader(p.getInputStream()));
+			String cpathAtual = cams.get("CPATH");
+			if(cpathAtual == null) cpathAtual = "";
+			cams.put("CPATH", localInclude + ":" + clangInclude + ":" + usrInclude + ":" + cpathAtual);
 
-            StringBuilder resultado = new StringBuilder();
-            String linha;
-            while((linha = leitor.readLine()) != null) resultado.append(linha).append("\n");
+			String cppAtual = cams.get("CPLUS_INCLUDE_PATH");
+			if(cppAtual == null) cppAtual = "";
+			cams.put("CPLUS_INCLUDE_PATH", localInclude + ":" + clangInclude + ":" + usrInclude + ":" + cppAtual);
 
-            final String s = resultado.toString();
-            final int codigoSaida = p.waitFor();
+			String bibliDir = sysrootBiblis + "/usr/lib";
+			String bibliAtual = cams.get("LIBRARY_PATH");
+			if(bibliAtual == null) bibliAtual = "";
+			cams.put("LIBRARY_PATH", bibliDir + ":" + sysrootBiblis + ":" + bibliAtual);
 
-            runOnUiThread(new Runnable() {
-                    public void run() {
-                        System.out.println(s);
-                        System.out.println("saida: " + codigoSaida + "\n");
-                    }
-                });
-        } catch(final Exception e) {
-            erro(e.getMessage());
-        }
-    }
+			String ldAtual = cams.get("LD_LIBRARY_PATH");
+			if(ldAtual == null) ldAtual = "";
+			cams.put("LD_LIBRARY_PATH", bibliDir + ":" + sysrootBiblis + ":" + ldAtual);
+
+			cams.put("TMPDIR", dirPs.getAbsolutePath() + "/tmp");
+			String openssl = cams.get("OPENSSL_CONF");
+			if(openssl == null) openssl = "";
+			cams.put("OPENSSL_CONF", dirPs.getAbsolutePath() + "/etc" + ":" + openssl);
+
+			cams.put("SYSROOT", sysrootBiblis);
+			cams.put("PACOTES_DIR", dirPs.getAbsolutePath());
+			
+			pb.command("/system/bin/sh", "-c", comando);
+			pb.directory(dirTrabalho);
+			pb.redirectErrorStream(true);
+
+			final Process p = pb.start();
+			BufferedReader leitor = new BufferedReader(new InputStreamReader(p.getInputStream()));
+
+			StringBuilder resultado = new StringBuilder();
+			String linha;
+			while((linha = leitor.readLine()) != null) resultado.append(linha).append("\n");
+
+			final String s = resultado.toString();
+			final int codigoSaida = p.waitFor();
+
+			runOnUiThread(new Runnable() {
+					public void run() {
+						System.out.println(s);
+						System.out.println("saida: " + codigoSaida + "\n");
+					}
+				});
+		} catch(final Exception e) {
+			erro(e.getMessage());
+		}
+	}
 
     public void erro(final String msg) {
         runOnUiThread(new Runnable() {
