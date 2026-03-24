@@ -14,20 +14,19 @@ import java.net.URL;
 import java.io.FileOutputStream;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipEntry;
-import android.os.Build;
+import java.io.IOException;
 
 public class Executor {
 	public File dirTrabalho, dirPs, dirTmp, dirExec;
     public List<String> bins = new ArrayList<>();
 	public Map<String, String> pacotes = new HashMap<>();
+	public final boolean usaLinker64;
+	
 	public ProcessBuilder pb;
-
-	public Process sh;
-	public OutputStream stdin;
-	public BufferedReader stdout;
-	public static final String SENTINEL = "__FIM__";
-
-	public Executor(File ambiente) {
+	
+	public Executor(File ambiente, boolean usaLinker64) {
+		this.usaLinker64 = usaLinker64;
+		
 		// configurando diretorios:
         dirTrabalho = new File(ambiente.getAbsolutePath(), "CASA");
         if(!dirTrabalho.isDirectory()) dirTrabalho.mkdirs();
@@ -57,9 +56,7 @@ public class Executor {
 			configAmbiente(pb);
 			pb.command("/system/bin/sh");
 			pb.redirectErrorStream(true);
-			sh = pb.start();
-			stdin = sh.getOutputStream();
-			stdout = new BufferedReader(new InputStreamReader(sh.getInputStream(), "UTF-8"));
+			
 			defPermissoes();
 		} catch(Exception e) {
 			System.err.println("Erro ao iniciar shell: " + e.getMessage());
@@ -77,12 +74,16 @@ public class Executor {
 		}
 	}
 
-	public void exec(final String comandoStr) {
+	public void exec(final String cmd) {
         new Thread(new Runnable() {
 				@Override
 				public void run() {
-					if(comandoStr.startsWith("instalar ")) {
-						String c = comandoStr.substring(9).trim();
+					if(cmd.startsWith("instalar ")) {
+						String c = cmd.substring(9).trim();
+						if(c.equals("listar")) {
+							for(String p : pacotes.keySet()) System.out.println(p);
+							return;
+						}
 						if(pacotes.containsKey(c)) instalarWeb(pacotes.get(c));         
 						else {
 							if((new File(c).exists())) instalarPacote(c);
@@ -90,7 +91,7 @@ public class Executor {
 						}
 						return;
 					}
-					execProcesso(comandoStr);
+					execProcesso(cmd);
 				}
 			}).start();
     }
@@ -157,27 +158,22 @@ public class Executor {
 		execProcesso("chmod +x "+dirPs.getAbsolutePath()+"/bin/*");
     }  
 
-	public synchronized void execProcesso(String comando) {
-        try {
-            final String comandoFinal = enrolarLinker(comando.trim());
-            // envia o comando + sentinel com codigo de saída
-            stdin.write((comandoFinal + "\necho " + SENTINEL + "$?\n").getBytes());
-            stdin.flush();
+	public void execProcesso(String comando) {
+		try {
+			pb.command("/system/bin/sh", "-c", enrolarLinker(comando.trim()));
+			Process p = pb.start();
 
-            final StringBuilder resultado = new StringBuilder();
-            String linha;
-            while((linha = stdout.readLine()) != null) {
-                if(linha.startsWith(SENTINEL)) {
-                    System.out.println(resultado.toString());
-                    System.out.println(linha.substring(SENTINEL.length()));
-                    break;
-                }
-                resultado.append(linha).append("\n");
-            }
-        } catch(Exception e) {
-            System.err.println(e.getMessage());
-        }
-    }
+			BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream(), "UTF-8"));
+
+			String linha;
+			while((linha = br.readLine()) != null) System.out.println(linha);
+			
+			int codigo = p.waitFor();
+			System.err.println("\n"+codigo);
+		} catch(Exception e) {
+			System.err.println("[ERRO]: " + e.getMessage());
+		}
+	}
 
 	public void configAmbiente(ProcessBuilder pb) {
         Map<String, String> cams = pb.environment();
@@ -221,8 +217,8 @@ public class Executor {
     }
 
 	public String enrolarLinker(String comando) {
-		if(Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return comando; // so android 10+ usa linker64
-
+		if(!usaLinker64) return comando;
+		
         String[] partes = comando.trim().split("\\s+", 2);
         String nomeBin = partes[0];
 		
@@ -255,7 +251,9 @@ public class Executor {
 					return "/system/bin/linker64 " + binEncontrado.getAbsolutePath() + args;
 				}
             }
-        } catch(Exception e) {}
+        } catch(Exception e) {
+			System.err.println("[ERRO]: "+e);
+		}
         return comando;
     }
 

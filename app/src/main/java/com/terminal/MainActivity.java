@@ -20,6 +20,7 @@ import android.widget.TextView;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import com.ttt.Executor;
+import android.view.View;
 
 public class MainActivity extends Activity {
     public TextView saida;
@@ -40,35 +41,36 @@ public class MainActivity extends Activity {
 
         pedirPermissoes();
         redirecionarSaida();
-
-        executor = new Executor(getFilesDir());
-
-        entrada.setOnEditorActionListener(new TextView.OnEditorActionListener() {
-				@Override
-				public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-					boolean enter = actionId == EditorInfo.IME_ACTION_DONE ||
-						(event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
-                        && event.getAction() == KeyEvent.ACTION_DOWN);
-					if(enter) {
-						String cmd = entrada.getText().toString().trim();
-						if(!cmd.isEmpty()) {
-							escrever("$ " + cmd + "\n");
-							entrada.setText("");
-							executor.exec(cmd);
-						}
-						return true;
-					}
-					return false;
-				}
-			});
+		
+		boolean usaLinker64 = true;
+		
+		if(Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) usaLinker64 = false; // so android 10+ usa linker64
+		
+        executor = new Executor(getFilesDir(), usaLinker64);
+		
+		introducao();
     }
+	
+	public void confirmar(View v) {
+		String cmd = entrada.getText().toString().trim();
+		if(!cmd.isEmpty()) {
+			entrada.setText("");
+			
+			if(cmd.equals("clear")) {
+				saida.setText("");
+				return;
+			}
+			System.out.println("$ " + cmd);
+			executor.exec(cmd);
+		}
+	}
 
     public void redirecionarSaida() {
 		try {
 			PrintStream ps = new PrintStream(new OutputStream() {
 					@Override
-					public void write(byte[] b, int off, int len) {
-						final String texto = new String(b, off, len, java.nio.charset.Charset.forName("UTF-8"));
+					public void write(byte[] b, int pos, int tam) {
+						final String texto = new String(b, pos, tam, java.nio.charset.Charset.forName("UTF-8"));
 						escrever(texto);
 					}
 					@Override
@@ -78,7 +80,9 @@ public class MainActivity extends Activity {
 				}, false, "UTF-8");
 			System.setOut(ps);
 			System.setErr(ps);
-		} catch(Exception e) {}
+		} catch(Exception e) {
+			System.err.println("[ERRO]: "+e);
+		}
     }
 
     public void escrever(final String texto) {
@@ -109,5 +113,12 @@ public class MainActivity extends Activity {
             }
         }
     }
+	
+	public static void introducao() {
+		System.out.println("[Terminal Simples]");
+		System.out.println("> Comandos:\n");
+		System.out.println("# para ver todos pacotes disponiveis online:");
+		System.out.println("> instalar listar");
+	}
 }
 
