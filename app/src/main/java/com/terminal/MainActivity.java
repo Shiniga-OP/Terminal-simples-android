@@ -116,9 +116,8 @@ public class MainActivity extends Activity {
 	
 	public static void introducao() {
 		System.out.println("[Terminal Simples]");
-		System.out.println("> Comandos:\n");
-		System.out.println("# para ver todos pacotes disponiveis online:");
-		System.out.println("> instalar listar");
+		System.out.println("# digite: instalar listar");
+		System.out.println("# para ver todos pacotes disponiveis online");
 	}
 }
 

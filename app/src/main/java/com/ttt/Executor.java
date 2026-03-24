@@ -23,6 +23,8 @@ public class Executor {
 	public final boolean usaLinker64;
 	
 	public ProcessBuilder pb;
+	public Process shell;
+	public OutputStream stdin;
 	
 	public Executor(File ambiente, boolean usaLinker64) {
 		this.usaLinker64 = usaLinker64;
@@ -47,20 +49,9 @@ public class Executor {
         pacotes.put("node", "https://github.com/Shiniga-OP/Terminal-simples-android/releases/download/NodeJS-v22.17.1-arm64/node.zip");
         pacotes.put("asm", "https://github.com/Shiniga-OP/Terminal-simples-android/releases/download/Assembly-arm64/asm.zip");
         pacotes.put("clang", "https://github.com/Shiniga-OP/Terminal-simples-android/releases/download/Clang-20.1.8-arm64/clang.zip");
-
+		pacotes.put("java17", "https://github.com/Shiniga-OP/Terminal-simples-android/releases/download/Java17-arm64/java17.zip");
+		
 		iniciarSh();
-	}
-
-	public void iniciarSh() {
-		try {
-			configAmbiente(pb);
-			pb.command("/system/bin/sh");
-			pb.redirectErrorStream(true);
-			
-			defPermissoes();
-		} catch(Exception e) {
-			System.err.println("Erro ao iniciar shell: " + e.getMessage());
-		}
 	}
 	
 	public void defPermissoes() {
@@ -158,18 +149,40 @@ public class Executor {
 		execProcesso("chmod +x "+dirPs.getAbsolutePath()+"/bin/*");
     }  
 
+	public void iniciarSh() {
+		try {
+			configAmbiente(pb);
+			pb.command("/system/bin/sh");
+			pb.redirectErrorStream(true);
+			shell = pb.start();
+			stdin = shell.getOutputStream();
+
+			// thread lendo stdout continuamente:
+			new Thread(new Runnable() {
+					@Override
+					public void run() {
+						try {
+							BufferedReader br = new BufferedReader(
+								new InputStreamReader(shell.getInputStream(), "UTF-8"));
+							String linha;
+							while((linha = br.readLine()) != null) {
+								System.out.println(linha);
+							}
+						} catch(Exception e) {
+							System.err.println("[ERRO]: " + e.getMessage());
+						}
+					}
+				}).start();
+			defPermissoes();
+		} catch(Exception e) {
+			System.err.println("Erro ao iniciar shell: " + e.getMessage());
+		}
+	}
+
 	public void execProcesso(String comando) {
 		try {
-			pb.command("/system/bin/sh", "-c", enrolarLinker(comando.trim()));
-			Process p = pb.start();
-
-			BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream(), "UTF-8"));
-
-			String linha;
-			while((linha = br.readLine()) != null) System.out.println(linha);
-			
-			int codigo = p.waitFor();
-			System.err.println("\n"+codigo);
+			stdin.write((comando + '\n').getBytes("UTF-8"));
+			stdin.flush();
 		} catch(Exception e) {
 			System.err.println("[ERRO]: " + e.getMessage());
 		}
@@ -192,17 +205,19 @@ public class Executor {
         String localInclude = dirPs.getAbsolutePath() + "/include";
         String clangInclude = dirPs.getAbsolutePath() + "/usr/clang/20/include";
         String usrInclude = dirPs.getAbsolutePath() + "/usr/include";
-
+		// No configAmbiente, depois de configurar as outras variáveis
+		String javaCasa= sysrootBiblis + "/jvm/java-17-openjdk";
+		cams.put("JAVA_HOME", javaCasa);
 		// clang
         addVar(cams, "C_INCLUDE_PATH", localInclude + ":" + clangInclude + ":" + usrInclude);
         addVar(cams, "CPATH", localInclude + ":" + clangInclude + ":" + usrInclude);
         addVar(cams, "CPLUS_INCLUDE_PATH", localInclude + ":" + clangInclude + ":" + usrInclude);
 		
-		// LD:
+		// bibliotecas:
         String bibliDir = sysrootBiblis + "/usr/lib";
         addVar(cams, "LIBRARY_PATH", bibliDir + ":" + sysrootBiblis);
-        addVar(cams, "LD_LIBRARY_PATH", bibliDir + ":" + sysrootBiblis);
-		
+		addVar(cams, "LD_LIBRARY_PATH", bibliDir + ":" + sysrootBiblis + ":" + sysrootBiblis + "/jvm/java-17-openjdk/lib");
+        
 		// geral:
         cams.put("TMPDIR", dirTmp.getAbsolutePath());
         cams.put("SYSROOT", sysrootBiblis);
